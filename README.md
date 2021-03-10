@@ -1,5 +1,13 @@
 # multi-robot-control
 
+## Multiple robots control
+
+[readme](https://github.com/SummerOf15/multi-robot-control/blob/main/multi-robot/ReadMe.md)
+
+![image-20210310213208143](README.assets/image-20210310213208143.png)
+
+
+
 ## YOLO object detection
 
 ### Environment
