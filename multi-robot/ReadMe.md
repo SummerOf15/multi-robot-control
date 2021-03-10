@@ -6,6 +6,8 @@ We implement a project using multiple drones to detect persons and sending the r
 
 In best performance, the drone can detect **7/8** persons and the husky robot can identify **6/8** persons.
 
+In test session, we achieved **3/8** identification and **7/8** detection.
+
 ## Example
 
 [youtube](https://youtu.be/J6GOlmmIfBc)
