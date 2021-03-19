@@ -105,39 +105,6 @@ class movement(object):
         start_row = 200
         end_row = 300
 
-        # self.ob = []
-        # center_line = self.image[(start_row+end_row)/2]
-        # image_center_x = 320.5
-        # f = 554.254691191187
-        # index = np.argwhere(~np.isnan(center_line)).flatten()  # index of obstacles in img
-        # distance_x = index - image_center_x
-        # angle = np.arctan2(distance_x, f)
-        # if len(self.position) != 0 and len(index)!=0:
-        #     ob_angle = self.position[2] - angle
-        #     ob_x = np.cos(ob_angle) * center_line[index] + self.position[0]
-        #     ob_y = np.sin(ob_angle) * center_line[index] + self.position[1]
-        #
-        #     if len(self.ob) == 0:
-        #         self.ob = np.vstack((ob_x, ob_y)).T
-        #     else:
-        #         ob_new = np.array([ob_x, ob_y]).T
-        #         d = np.linalg.norm(ob_new[:, None] - np.array(self.ob)[:], axis=2, keepdims=True).min(axis=1).flatten()
-        #         index = np.argwhere(d < 2)
-        #         ob_new = np.delete(ob_new, index, axis=0)
-        #         self.ob = np.append(self.ob, ob_new, axis=0)
-        #         i = len(self.ob) - 50
-        #         if i >= 1:
-        #             self.ob = np.delete(self.ob, range(i), axis=1)
-        # print(len(self.ob))
-            # print(len(self.ob))
-
-
-        # middle obstacle detection
-        # if np.isnan(self.image[255][
-        #             width / 2 - detection_width / 2:width / 2 + detection_width / 2]).sum() == detection_width:
-        #     self.flag = self.flag
-        # else:
-        #     self.flag = self.flag + 1
         window = self.image[255, width/2-detection_width/2:width/2+detection_width/2]
         index = np.argwhere(~np.isnan(window)).flatten()
         if len(index) >0 and 0.2 < window[index].min() < 1.5:
@@ -152,8 +119,6 @@ class movement(object):
             self.collison = False
 
         # too close to obstacle detection
-        # if np.isnan(self.image[360][width/2-detection_width/2:width/2+detection_width/2]).sum() == detection_width:
-        #     self.close = 0
         if np.isnan(self.image[360][width / 2 - detection_width / 2:width / 2 + detection_width / 2]).sum() >= 1 \
                 or self.image[255][width / 2 - detection_width / 2:width / 2 + detection_width / 2].min() <= 0.2:
             self.close = 0
@@ -189,13 +154,14 @@ class pathfind(movement):
         self.threshold()
         self.inflate()
         self.dis = cv2.distanceTransform(self.map, cv2.DIST_L2, 3) # calculate thess distances bewteen points and points 0 in the map
+        self.dis[self.dis>15] = 15
         self.dis_cost = self.dis.max()/(self.dis+1e-5) # thes points neaby the obstacls have more cost
         self.start = self.position[0:2]
         # self.scale = 0.118  # scale 1 pixel -> 0.118 meters
         self.scale = 0.1723
         self.org = np.array([299.4, 367.4])  # pixel coordinate of original point
         self.show_animation = False
-        self.heuristic_weight = 1
+        self.heuristic_weight = 3
         self.d_subsample = 2
 
 
@@ -331,8 +297,9 @@ class pathfind(movement):
 
             for next in neighbors:
                 # new_cost = cost_so_far[current] + math.dist(current, next)
-                new_cost = cost_so_far[current] + np.linalg.norm(np.array(current)-np.array(next))
+                # new_cost = cost_so_far[current] + np.linalg.norm(np.array(current)-np.array(next))
                 # new_cost = cost_so_far[current] + math.dist(current, next) + self.dis_cost[next]
+                new_cost = cost_so_far[current] + np.linalg.norm(np.array(current)-np.array(next)) + self.dis_cost[next]
                 test = (next in closed) or ((next in frontier) and (new_cost > cost_so_far[next]))
                 if not test:
                     cost_so_far[next] = new_cost
@@ -561,30 +528,6 @@ class pathfind(movement):
         plt.show()
         return np.array(path_subsample)
 
-    # # will collision ?
-    # def will_collision(self, path):
-    #     path_x = path[:, 0]
-    #     path_y = path[:, 1]
-    #     dx = self.ob[:, 0] - path_x[:, None]
-    #     dy = self.ob[:, 1] - path_y[:, None]
-    #     error = np.hypot(dx, dy)
-    #     if not len(error)!=0 and error.min() <= 0.5:
-    #         return True
-    #     else:
-    #         return False
-
-    # def find_local_path(self, pose):
-    #     neigbhor = np.array([[pose[0]+2, pose[0]+2, pose[0]+2, pose[0]+1, pose[0], pose[0]-1, pose[0]-2, pose[0]-2],
-    #                 [pose[1], pose[1]+1, pose[1]+2, pose[1]+2, pose[1]+2, pose[1]+2, pose[1]+2, pose[1]+1]])
-    #     rot = np.array([[math.cos(pose[3]), -math.sin(pose[3])],[math.sin(pose[3]), math.cos(pose[3])]])
-    #     neigbhor = np.matmul(rot, neigbhor).T/ self.scale
-    #     neigbhor[1] = -1 * neigbhor[1]
-    #     neigbhor_pixel = (neigbhor + self.org).astype(np.int32)
-    #     obstacl = []
-    #     for p in range(neigbhor_pixel):
-    #         if self.map[p[0],p[1]] == 0:
-    #             obstacl.append(p)
-
 
     def move(self, robot_N):
         # Starts a new node
@@ -593,9 +536,7 @@ class pathfind(movement):
         # Receiveing the user's input
         krho = 1
         kalpha = 2
-        # goal = np.array([[0,1],[-8, 45],[74,13],[7,-35]])
-        # goal = np.array([[24,-27],[-18,16],[74.0,13],[55,17],[10.9, -35.0]])
-	goal=self.goals
+        goal=self.goals
         while not rospy.is_shutdown():
             '''
             Robot plan a trajectory to arrive at goal
@@ -604,7 +545,6 @@ class pathfind(movement):
 
             # verify the robot if vacant. If vacant, accept
             for sub_goal in goal:
-                #if self.wait == True and self.isnode == True:
                 self.wait = True
 
                 if self.wait == True:
@@ -619,15 +559,14 @@ class pathfind(movement):
                     i = 0
                     path_pass = np.array([[self.position[0],self.position[1]]])
                     while True:
-                        # node = path[i]
                         ## The robot plan a trajectory ##
 
                         if i == len(path):
                             i = len(path)-1
 
                         if np.linalg.norm((path[-1] - self.position[0:2])) < 1:
-			    print("[robot] robot {} arrives at person".format(robot_N))
-			    self.goals.remove(self.goals[0])
+                            print("[robot] robot {} arrives at person".format(robot_N))
+                            self.goals.remove(self.goals[0])
                             break
 
                         # print("current target{}".format(path[i]))
@@ -685,10 +624,6 @@ class pathfind(movement):
                                 pose = self.position
                         path_pass = np.append(path_pass, [path[i]], axis=0)
                         i = i+1
-
-                
-                
-
 
         # rospy.spin()
 
