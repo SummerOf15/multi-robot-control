@@ -3,7 +3,7 @@ from __future__ import print_function
 from geometry_msgs.msg import Point
 import rospy
 from gazebo_msgs.msg import ModelStates
-
+import random
 
 
 
@@ -56,7 +56,7 @@ class Server:
                 if self.husky_state[i] is True:
                     dist.append((pos.x-target_pos.x)**2+(pos.y-target_pos.y)**2)
                 else:
-                    dist.append((4-i)*100000) # if all robots are busy
+                    dist.append(random.randint(1,5)*100000) # if all robots are busy
             return dist.index(min(dist)) # husky id starts from 1 to 4
 
     def gazebo_callback(self, data):

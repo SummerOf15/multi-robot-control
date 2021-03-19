@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 import time
 import math
-# from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt
 # plt.switch_backend('agg')
 import rospy
 from geometry_msgs.msg import Twist, Point, Pose
@@ -54,7 +54,6 @@ def euler_from_quaternion(x, y, z, w):
 class movement(object):
     def __init__(self, robot_N):
         self.position = np.array([0, 0, 0, 0])
-        
         self.rate = rospy.Rate(10)
         self.velocity_publisher2 = rospy.Publisher('cmd_vel', Twist, queue_size=1)
         self.vel_msg = Twist()
@@ -64,16 +63,21 @@ class movement(object):
         self.count = 0
         self.wait = True
         self.isnode = False
-        self.goals=[]
         self.bridge = cv_bridge.CvBridge()
-        self.image_sub = rospy.Subscriber('camera/depth/image_raw', Image, self.image_callback)
+        self.image_sub = rospy.Subscriber('/husky{}/camera/depth/image_raw'.format(robot_N), Image, self.image_callback)
+	self.goals=[]
+
         rospy.Subscriber('robot/position', Pose,self.pose_callback)
         self.target_sub=rospy.Subscriber("robot/goal",Point,self.target_callback)
+
+        ### Modify the code as follows ###
+        ### subscribe position of person ###
+        # rospy.Subscriber("name of node for getting person position")
 
     def target_callback(self, point):
         self.goals.append([point.x,point.y])
         self.isnode=True
-        print("{} get person information".format(self.robot_N))
+        print("husky {} get person information".format(self.robot_N))
 
     def pose_callback(self, pose_msg):
         x=pose_msg.position.x
@@ -84,6 +88,11 @@ class movement(object):
         angle = euler_from_quaternion(rotq.x, rotq.y, rotq.z, rotq.w)
         self.position = np.array([x, y, z, angle[2]])
 
+    ### Modify the code as follows ###
+    ###callback the position of person###
+    # def person_callback(self, data):
+    #     self.per_position =
+    #     self.isnode = True
 
     def image_callback(self, msg):
         # BEGIN BRIDGE
@@ -96,9 +105,42 @@ class movement(object):
         start_row = 200
         end_row = 300
 
+        # self.ob = []
+        # center_line = self.image[(start_row+end_row)/2]
+        # image_center_x = 320.5
+        # f = 554.254691191187
+        # index = np.argwhere(~np.isnan(center_line)).flatten()  # index of obstacles in img
+        # distance_x = index - image_center_x
+        # angle = np.arctan2(distance_x, f)
+        # if len(self.position) != 0 and len(index)!=0:
+        #     ob_angle = self.position[2] - angle
+        #     ob_x = np.cos(ob_angle) * center_line[index] + self.position[0]
+        #     ob_y = np.sin(ob_angle) * center_line[index] + self.position[1]
+        #
+        #     if len(self.ob) == 0:
+        #         self.ob = np.vstack((ob_x, ob_y)).T
+        #     else:
+        #         ob_new = np.array([ob_x, ob_y]).T
+        #         d = np.linalg.norm(ob_new[:, None] - np.array(self.ob)[:], axis=2, keepdims=True).min(axis=1).flatten()
+        #         index = np.argwhere(d < 2)
+        #         ob_new = np.delete(ob_new, index, axis=0)
+        #         self.ob = np.append(self.ob, ob_new, axis=0)
+        #         i = len(self.ob) - 50
+        #         if i >= 1:
+        #             self.ob = np.delete(self.ob, range(i), axis=1)
+        # print(len(self.ob))
+            # print(len(self.ob))
+
+
+        # middle obstacle detection
+        # if np.isnan(self.image[255][
+        #             width / 2 - detection_width / 2:width / 2 + detection_width / 2]).sum() == detection_width:
+        #     self.flag = self.flag
+        # else:
+        #     self.flag = self.flag + 1
         window = self.image[255, width/2-detection_width/2:width/2+detection_width/2]
         index = np.argwhere(~np.isnan(window)).flatten()
-        if len(index) >0 and 0.2 < window[index].min() < 1:
+        if len(index) >0 and 0.2 < window[index].min() < 1.5:
             self.collison = True
             left_region = np.isnan(self.image[start_row:end_row, :width // 2]).sum()
             right_region = np.isnan(self.image[start_row:end_row, width // 2:]).sum()
@@ -153,7 +195,7 @@ class pathfind(movement):
         self.scale = 0.1723
         self.org = np.array([299.4, 367.4])  # pixel coordinate of original point
         self.show_animation = False
-        self.heuristic_weight = 3.0
+        self.heuristic_weight = 1
         self.d_subsample = 2
 
 
@@ -265,7 +307,6 @@ class pathfind(movement):
         """
         Compute shortest path using AStar algorithm
         """
-  
         frontier = {}
         frontier[start] = self.heuristic_weight * self.heuristic(goal, start)
 
@@ -281,7 +322,6 @@ class pathfind(movement):
 
             current = min(frontier, key=frontier.get)
             # draw frontier for results
-
             self.result_img[current[0],current[1], 1] = 255
 
             if current == goal:
@@ -306,9 +346,9 @@ class pathfind(movement):
             closed[current] = 1
             frontier.pop(current)
 
-            # if self.show_animation and iter % 100 ==0:
-            #     plt.imshow(self.result_img)
-            #     plt.pause(0.001)
+            if self.show_animation and iter % 100 ==0:
+                plt.imshow(self.result_img)
+                plt.pause(0.001)
 
         # Compute path
         current = goal
@@ -425,11 +465,11 @@ class pathfind(movement):
         pos = self.transform_to_pixel(self.position[0:2])
         neighbor = self.position[0:2]
         while self.map[pos[1],pos[0]]<125:
-            
-            start_row = pos[1] - 40 if pos[1] - 40 > 0 else 0
-            end_row = pos[1] + 40 if pos[1] + 40 < self.columns else self.columns
-            start_colum = pos[0] - 40 if pos[0] - 40 > 0 else 0
-            end_colum = pos[0] + 40 if pos[0] + 40 < self.rows else self.rows
+            #print('is in obstacle')
+            start_row = pos[1] - 20 if pos[1] - 20 > 0 else 0
+            end_row = pos[1] + 20 if pos[1] + 20 < self.columns else self.columns
+            start_colum = pos[0] - 20 if pos[0] - 20 > 0 else 0
+            end_colum = pos[0] + 20 if pos[0] + 20 < self.rows else self.rows
 
             neighbor = self.map[start_row:end_row, start_colum:end_colum]
             index = np.argwhere(neighbor > 0)
@@ -462,25 +502,53 @@ class pathfind(movement):
 
         return neighbor
 
+    def find_neighboor(self, goal, size, pixel_size=False):
 
+        '''
+        if goal is in obstacles, find a neighbor point around it as the goal
+        :param goal: real goal
+        :param size: real size in environment
+        :return: neighbor point
+        '''
+
+        if self.map[goal[1], goal[0]] > 125:
+            goal = goal
+        else:
+            if pixel_size:
+                size_pixel = size
+            else:
+                size_pixel = int(size / self.scale)
+            while True:
+                start_row = goal[1] - size_pixel if goal[1] - size_pixel > 0 else 0
+                end_row = goal[1] + size_pixel if goal[1] + size_pixel < self.columns else self.columns
+                start_colum = goal[0] - size_pixel if goal[0] - size_pixel > 0 else 0
+                end_colum = goal[0] + size_pixel if goal[0] + size_pixel < self.rows else self.rows
+                goal_neighbor = self.map[start_row:end_row, start_colum:end_colum]
+                index = np.argwhere(goal_neighbor > 125)
+                if len(index) == 0:
+                    size_pixel += 50
+                else:
+                    break
+            goal = [index[random.randint(0, len(index) - 1)][1] + start_colum, index[random.randint(0, len(index) - 1)][0] + start_row]
+
+        return goal
 
     def findpath(self, start, goal):
 
         start = self.transform_to_pixel(start)
         goal = self.transform_to_pixel(goal)
-
-        start_row = goal[1]-50 if goal[1]-50>0 else 0
-        end_row = goal[1]+50 if goal[1]+50<self.columns else self.columns
-        start_colum = goal[0]-50 if goal[0]-50>0 else 0
-        end_colum = goal[0]+50 if goal[0]+50<self.rows else self.rows
-
-        goal_neighbor = self.map[start_row:end_row, start_colum:end_colum]
-        index = np.argwhere(goal_neighbor>0)
-        goal = (index[random.randint(0,len(index)-1)][0]+start_row, index[random.randint(0,len(index)-1)][1]+start_colum)
+        goal = self.find_neighboor(goal,size=50,pixel_size=True)
+        goal[0], goal[1] = goal[1], goal[0]
+        goal = (goal[0], goal[1])
         start[0], start[1] = start[1], start[0]
         start = (start[0], start[1])
 
+        #print(start, goal)
+        begin = time.time()
         self.astar(start, goal)
+        end = time.time()
+        # print('Computing time : ', end - begin)
+        # print('Path length : ', self.get_path_length())
 
         self.path = np.array(self.path)
         self.path[:, [0, 1]] = self.path[:, [1, 0]]
@@ -489,9 +557,33 @@ class pathfind(movement):
         path_subsample = np.append(path[::l], [path[-1]], axis=0)
         result_img = self.draw_path(start, goal)
 
-        # plt.imshow(result_img)
-        # plt.show()
+        plt.imshow(result_img)
+        plt.show()
         return np.array(path_subsample)
+
+    # # will collision ?
+    # def will_collision(self, path):
+    #     path_x = path[:, 0]
+    #     path_y = path[:, 1]
+    #     dx = self.ob[:, 0] - path_x[:, None]
+    #     dy = self.ob[:, 1] - path_y[:, None]
+    #     error = np.hypot(dx, dy)
+    #     if not len(error)!=0 and error.min() <= 0.5:
+    #         return True
+    #     else:
+    #         return False
+
+    # def find_local_path(self, pose):
+    #     neigbhor = np.array([[pose[0]+2, pose[0]+2, pose[0]+2, pose[0]+1, pose[0], pose[0]-1, pose[0]-2, pose[0]-2],
+    #                 [pose[1], pose[1]+1, pose[1]+2, pose[1]+2, pose[1]+2, pose[1]+2, pose[1]+2, pose[1]+1]])
+    #     rot = np.array([[math.cos(pose[3]), -math.sin(pose[3])],[math.sin(pose[3]), math.cos(pose[3])]])
+    #     neigbhor = np.matmul(rot, neigbhor).T/ self.scale
+    #     neigbhor[1] = -1 * neigbhor[1]
+    #     neigbhor_pixel = (neigbhor + self.org).astype(np.int32)
+    #     obstacl = []
+    #     for p in range(neigbhor_pixel):
+    #         if self.map[p[0],p[1]] == 0:
+    #             obstacl.append(p)
 
 
     def move(self, robot_N):
@@ -499,10 +591,11 @@ class pathfind(movement):
         assert int(robot_N) in {1, 2, 3, 4}
 
         # Receiveing the user's input
-        krho = 2
+        krho = 1
         kalpha = 2
-        # goal = np.array([[74.0,13],[10.9, -35.0],[0,1]])
-        goal=self.goals
+        # goal = np.array([[0,1],[-8, 45],[74,13],[7,-35]])
+        # goal = np.array([[24,-27],[-18,16],[74.0,13],[55,17],[10.9, -35.0]])
+	goal=self.goals
         while not rospy.is_shutdown():
             '''
             Robot plan a trajectory to arrive at goal
@@ -511,36 +604,52 @@ class pathfind(movement):
 
             # verify the robot if vacant. If vacant, accept
             for sub_goal in goal:
+                #if self.wait == True and self.isnode == True:
                 self.wait = True
 
                 if self.wait == True:
-                    print('Accept goal : {}'.format(sub_goal))
+                    # print('Accept goal : {}'.format(sub_goal))
                     self.wait = False
-                    print("control husky {}".format(robot_N), "husky status : wait ->{}".format(self.wait))
+                    print("control husky {}->{}husky status : wait ->{}".format(robot_N, sub_goal,self.wait))
                     start = self.is_in_obstacle()
 
                     path = self.findpath(start, sub_goal)
-                    print('Path Already, GO')
+                    # print('Path Already, GO')
 
-                    for node in path:
-                        ## The robot plan a trajectory #
+                    i = 0
+                    path_pass = np.array([[self.position[0],self.position[1]]])
+                    while True:
+                        # node = path[i]
+                        ## The robot plan a trajectory ##
+
+                        if i == len(path):
+                            i = len(path)-1
+
+                        if np.linalg.norm((path[-1] - self.position[0:2])) < 1:
+			    print("[robot] robot {} arrives at person".format(robot_N))
+			    self.goals.remove(self.goals[0])
+                            break
+
+                        # print("current target{}".format(path[i]))
+                        # print("move to target point")
+
 
                         # turn to direction of target ##
                         pose = self.position
-                        error = (node - pose[0:2])
+                        error = (path[i] - pose[0:2])
                         AngleToGoal = angle_wrap(math.atan2(error[1], error[0]) - pose[3])
                         while abs(AngleToGoal) > 1 and not rospy.is_shutdown():
-                            error = (node - pose[0:2])
+                            error = (path[i] - pose[0:2])
                             AngleToGoal = angle_wrap(math.atan2(error[1], error[0]) - pose[3])
                             av_z = kalpha * AngleToGoal
                             self.update_velocity(0, 0, 0, 0, 0, av_z)
                             pose = self.position
 
                         # Move along the path
-                        while (np.linalg.norm((node - pose[0:2])) > 1) and not rospy.is_shutdown():
-                            error = (node - pose[0:2])
+                        while (np.linalg.norm((path[i] - pose[0:2])) > 1) and not rospy.is_shutdown():
+                            error = (path[i] - pose[0:2])
                             if self.close == 0:
-                                #print('Collision')
+                                # print('Collision')
                                 t0 = rospy.Time.now().to_sec()
                                 t1 = t0
                                 while (t1 - t0) < 1.5:
@@ -549,18 +658,23 @@ class pathfind(movement):
                                     self.update_velocity(v_x, 0, 0, 0, 0, av_z)
                                     t1 = rospy.Time.now().to_sec()
 
-                            # collision = self.will_collision(path)
                             if self.collison:
-                                #print('Will collision')
-                                AngleToGoal = 0.5 * self.left
-                                goalDist = 1
-                                v_x = krho * goalDist
-                                av_z = kalpha * AngleToGoal
-                                t0 = rospy.Time.now().to_sec()
-                                t1 = t0
-                                while (t1 - t0) < 1:
-                                    self.update_velocity(v_x, 0, 0, 0, 0, av_z)
-                                    t1 = rospy.Time.now().to_sec()
+                                # print('Will collision')
+                                v_x = 1
+                                av_z = 0.5*self.left
+                                self.update_velocity(v_x, 0, 0, 0, 0, av_z)
+                                # t0 = rospy.Time.now().to_sec()
+                                # t1 = t0
+                                # while (t1 - t0) < 1.5:
+                                #     self.update_velocity(v_x, 0, 0, 0, 0, av_z)
+                                #     t1 = rospy.Time.now().to_sec()
+                                index = np.argmin(np.linalg.norm(self.position[0:2]-path))
+                                if index == i or (path[index] in path_pass):
+                                    i += 1
+                                    if i == len(path):
+                                        i = len(path) - 1
+                                else:
+                                    i = index
                                 continue
                             else:
                                 AngleToGoal = angle_wrap(math.atan2(error[1], error[0]) - pose[3])
@@ -569,8 +683,14 @@ class pathfind(movement):
                                 av_z = kalpha * AngleToGoal
                                 self.update_velocity(v_x, 0, 0, 0, 0, av_z)
                                 pose = self.position
-                print("[robot] robot {} arrives at person".format(robot_N))
-                self.goals.remove(self.goals[0])
+                        path_pass = np.append(path_pass, [path[i]], axis=0)
+                        i = i+1
+
+                
+                
+
+
+        # rospy.spin()
 
 if __name__ == '__main__':
     # Testing our function
@@ -582,3 +702,4 @@ if __name__ == '__main__':
 
     # path.init_robot(robot_N)
     path.move(robot_N)
+
